@@ -57,19 +57,20 @@ This project uses CMake and vcpkg.
 ### Requirements
 - Windows
 - CMake
-- Visual Studio toolchain
-- MuJoCo
+- Visual Studio (4.2.1)
+- MuJoCo 
 - GLFW (via vcpkg)
 
 ### Build and install
 
 From the project root:
 
-```bat
+```
 build_install.bat
-
----
+```
 
 ### Run Sim
-.\install\bin\control_demos_app.exe
 
+```
+.\install\bin\control_demos_app.exe
+```
