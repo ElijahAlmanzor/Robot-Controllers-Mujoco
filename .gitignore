@@ -1,0 +1,20 @@
+# Build and install directories
+build/
+install/
+
+# Visual Studio / CMake
+.vs/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+*.vcxproj*
+*.sln
+
+# Windows binaries
+*.exe
+*.dll
+*.pdb
+
+# OS junk
+Thumbs.db
+.DS_Store
