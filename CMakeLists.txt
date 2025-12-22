@@ -8,23 +8,31 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(MUJOCO_DIR "C:/mujoco")
 
 find_package(glfw3 CONFIG REQUIRED)
+find_package(Eigen3 CONFIG REQUIRED)
+
+add_library(interfaces
+    interfaces/robot_model.cpp
+)
+
+target_include_directories(interfaces PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/interfaces
+    ${MUJOCO_DIR}/include
+)
+
+target_link_libraries(interfaces PUBLIC
+    ${MUJOCO_DIR}/lib/mujoco.lib
+    Eigen3::Eigen
+)
 
 add_executable(control_demos_app
     src/main.cpp
 )
 
-target_include_directories(control_demos_app PRIVATE
-    ${MUJOCO_DIR}/include
-)
-
 target_link_libraries(control_demos_app PRIVATE
-    ${MUJOCO_DIR}/lib/mujoco.lib
+    interfaces
     glfw
 )
 
-# -----------------------------
-# Build-time convenience
-# -----------------------------
 add_custom_command(TARGET control_demos_app POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "C:/vcpkg/installed/x64-windows/bin/glfw3.dll"
@@ -32,9 +40,6 @@ add_custom_command(TARGET control_demos_app POST_BUILD
         $<TARGET_FILE_DIR:control_demos_app>
 )
 
-# -----------------------------
-# Install rules 
-# -----------------------------
 install(TARGETS control_demos_app
     RUNTIME DESTINATION bin
 )
