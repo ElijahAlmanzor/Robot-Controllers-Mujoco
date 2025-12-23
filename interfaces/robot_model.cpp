@@ -276,37 +276,56 @@ Eigen::MatrixXd RobotModel::get_jacobian(const std::string& name) const
 
 Eigen::VectorXd RobotModel::compute_gravity() const
 {
-    // Gravity torques in joint space
-    // Size: nv
-    // MuJoCo already projects gravity acting on all bodies into joint torques
-
     int nv = model_->nv;
+
+    // Save current velocities and accelerations
+    Eigen::VectorXd qvel_saved =
+        Eigen::Map<Eigen::VectorXd>(data_->qvel, nv);
+    Eigen::VectorXd qacc_saved =
+        Eigen::Map<Eigen::VectorXd>(data_->qacc, nv);
+
+    // Zero velocity and acceleration
+    for (int i = 0; i < nv; ++i)
+    {
+        data_->qvel[i] = 0.0;
+        data_->qacc[i] = 0.0;
+    }
+
+    // Inverse dynamics computes g(q)
+    mj_inverse(model_, data_);
 
     Eigen::VectorXd g(nv);
     for (int i = 0; i < nv; ++i)
     {
-        g[i] = data_->qfrc_grav[i];
+        g[i] = data_->qfrc_inverse[i];
+    }
+
+    // Restore state
+    for (int i = 0; i < nv; ++i)
+    {
+        data_->qvel[i] = qvel_saved[i];
+        data_->qacc[i] = qacc_saved[i];
     }
 
     return g;
 }
 
+
 Eigen::VectorXd RobotModel::compute_coriolis() const
 {
-    // Coriolis + centrifugal terms in joint space
-    // MuJoCo stores (C(q,qdot) qdot + g(q)) together as qfrc_bias
-    // So we subtract gravity to isolate velocity-dependent effects
+    Eigen::VectorXd g = compute_gravity();
 
     int nv = model_->nv;
-
     Eigen::VectorXd c(nv);
+
     for (int i = 0; i < nv; ++i)
     {
-        c[i] = data_->qfrc_bias[i] - data_->qfrc_grav[i];
+        c[i] = data_->qfrc_bias[i] - g[i];
     }
 
     return c;
 }
+
 
 Eigen::MatrixXd RobotModel::compute_mass_matrix() const
 {
