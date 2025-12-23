@@ -43,6 +43,13 @@ public:
     Eigen::Isometry3d get_frame_pose(const std::string& frame_name) const;
     Eigen::MatrixXd get_jacobian(const std::string& name) const;
 
+    // Dynamics
+    Eigen::VectorXd compute_gravity() const;
+    Eigen::VectorXd compute_coriolis() const;
+    Eigen::MatrixXd compute_mass_matrix() const;
+
+
+
 private:
     mjModel* model_;
     mjData* data_;

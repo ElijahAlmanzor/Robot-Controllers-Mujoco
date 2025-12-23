@@ -271,3 +271,66 @@ Eigen::MatrixXd RobotModel::get_jacobian(const std::string& name) const
     return J;
 }
 
+
+// Functions for extracting dynamic terms
+
+Eigen::VectorXd RobotModel::compute_gravity() const
+{
+    // Gravity torques in joint space
+    // Size: nv
+    // MuJoCo already projects gravity acting on all bodies into joint torques
+
+    int nv = model_->nv;
+
+    Eigen::VectorXd g(nv);
+    for (int i = 0; i < nv; ++i)
+    {
+        g[i] = data_->qfrc_grav[i];
+    }
+
+    return g;
+}
+
+Eigen::VectorXd RobotModel::compute_coriolis() const
+{
+    // Coriolis + centrifugal terms in joint space
+    // MuJoCo stores (C(q,qdot) qdot + g(q)) together as qfrc_bias
+    // So we subtract gravity to isolate velocity-dependent effects
+
+    int nv = model_->nv;
+
+    Eigen::VectorXd c(nv);
+    for (int i = 0; i < nv; ++i)
+    {
+        c[i] = data_->qfrc_bias[i] - data_->qfrc_grav[i];
+    }
+
+    return c;
+}
+
+Eigen::MatrixXd RobotModel::compute_mass_matrix() const
+{
+    // Joint space mass matrix M(q)
+    // Size: nv x nv
+    // MuJoCo stores this in compressed form and provides mj_fullM to expand it
+
+    int nv = model_->nv;
+
+    // Temporary buffer for full mass matrix (row-major, flat)
+    std::vector<mjtNum> M_full(nv * nv);
+
+    // Expand compressed mass matrix data_->qM into full form
+    mj_fullM(model_, M_full.data(), data_->qM);
+
+    // Copy into Eigen matrix
+    Eigen::MatrixXd M(nv, nv);
+    for (int i = 0; i < nv; ++i)
+    {
+        for (int j = 0; j < nv; ++j)
+        {
+            M(i, j) = M_full[i * nv + j];
+        }
+    }
+
+    return M;
+}
