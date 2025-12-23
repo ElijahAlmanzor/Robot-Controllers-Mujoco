@@ -98,15 +98,14 @@ void RobotModel::forward()
 
 std::vector<std::string> RobotModel::get_body_names() const
 {
-    std::vector<std::string> names; //declare the variable
+    std::vector<std::string> names;
 
-    for (int i = 0; i < model_->nbody; i++)
+    for (int i = 0; i < model_->nbody; ++i)
     {
-        // hold the addresses of the names in the pointer varable called name
-        const char* name = mj_id2name(model_, mjOBJ_BODY, i); //mjOBJ_BODY comes from mujoco.h
-        if (name)
+        const char* name = mj_id2name(model_, mjOBJ_BODY, i);
+        if (name && name[0] != '\0')
         {
-            names.push_back(name); // appends the new element to the end of the vector
+            names.emplace_back(name);
         }
     }
 
@@ -115,35 +114,33 @@ std::vector<std::string> RobotModel::get_body_names() const
 
 std::vector<std::string> RobotModel::get_frame_names() const
 {
-    std::vector<std::string> names; 
+    std::vector<std::string> names;
 
-    for (int i = 0; i < model_->nsite; i++)
+    for (int i = 0; i < model_->nsite; ++i)
     {
-        const char* name = mj_id2name(model_, mjOBJ_SITE, i); 
-        if (name)
+        const char* name = mj_id2name(model_, mjOBJ_SITE, i);
+        if (name && name[0] != '\0')
         {
-            names.push_back(name); 
+            names.emplace_back(name);
         }
     }
 
     return names;
 }
 
-void print_bodies() const
+void RobotModel::print_bodies(std::ostream& os) const
 {
-    //  for each element in get_body_names, make me an unmodifiable alias then print it out
     for (const auto& body_name : get_body_names())
     {
-        std::cout << body_name << "\n";
+        os << body_name << "\n";
     }
 }
 
-void print_frames() const
+void RobotModel::print_frames(std::ostream& os) const
 {
-    //  for each element in get_body_names, make me an unmodifiable alias then print it out
     for (const auto& frame_name : get_frame_names())
     {
-        std::cout << frame_name << "\n";
+        os << frame_name << "\n";
     }
 }
 
@@ -224,3 +221,53 @@ Eigen::Isometry3d RobotModel::get_frame_pose(const std::string& frame_name) cons
 
     return T;
 }
+
+Eigen::MatrixXd RobotModel::get_jacobian(const std::string& name) const
+{
+    /* Function for extracting jacobians out of either bodies or frames! */
+
+    int nv = model_->nv;
+
+    // Allocate raw buffers
+    std::vector<mjtNum> Jv(3 * nv);
+    std::vector<mjtNum> Jw(3 * nv);
+
+    // Try site (frame) first
+    int site_id = mj_name2id(model_, mjOBJ_SITE, name.c_str());
+
+    if (site_id >= 0)
+    {
+        mj_jacSite(model_, data_, Jv.data(), Jw.data(), site_id);
+    }
+    else
+    {
+        // Fallback to body if frame doesn't exist
+        int body_id = mj_name2id(model_, mjOBJ_BODY, name.c_str());
+
+        if (body_id >= 0)
+        {
+            mj_jacBody(model_, data_, Jv.data(), Jw.data(), body_id);
+        }
+        else
+        {
+            throw std::runtime_error("No site or body named: " + name);
+        }
+    }
+
+    // Stack into Eigen matrix
+    Eigen::MatrixXd J(6, nv);
+
+    for (int j = 0; j < nv; ++j)
+    {
+        J(0, j) = Jv[0 * nv + j];
+        J(1, j) = Jv[1 * nv + j];
+        J(2, j) = Jv[2 * nv + j];
+
+        J(3, j) = Jw[0 * nv + j];
+        J(4, j) = Jw[1 * nv + j];
+        J(5, j) = Jw[2 * nv + j];
+    }
+
+    return J;
+}
+
