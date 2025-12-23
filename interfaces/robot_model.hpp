@@ -25,6 +25,12 @@ public:
     void print_bodies() const; // ostream as only outputting
     void print_frames() const;
 
+
+    // get mathematical terms
+    Eigen::Isometry3d get_body_pose(const std::string& body_name) const; // as HTM
+    Eigen::Isometry3d get_frame_pose(const std::string& frame_name) const; // as HTM
+    Eigen::MatrixXdd get_site_jacobian(const std::string& site_name) const; // as 6 x nv matrix
+
     // Set values for use later by controllers
     void set_joint_positions(const Eigen::VectorXd& q_pos);
     void set_joint_velocities(const Eigen::VectorXd& q_vel);

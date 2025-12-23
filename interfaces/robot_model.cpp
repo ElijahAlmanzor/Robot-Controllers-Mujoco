@@ -146,3 +146,81 @@ void print_frames() const
         std::cout << frame_name << "\n";
     }
 }
+
+
+// Functions related to getting poses, jacobians and dynamic terms
+Eigen::Isometry3d RobotModel::get_body_pose(const std::string& body_name) const
+{
+    /* Function for obtaining a particular body's HTM SE(3) */
+
+    // Look up the body id from the body name given by mujoco
+    int body_id = mj_name2id(model_, mjOBJ_BODY, body_name.c_str());
+
+    if (body_id < 0)
+    {
+        throw std::runtime_error("Body name not found: " + body_name);
+    }
+
+    // Create the HTM SE(3)
+    Eigen::Isometry3d T = Eigen::Isometry3d::Identity();
+
+    // translations and orientations are already in world coordinates
+    // Extract the positions (mujoco stores them as 1d flattened vectors)
+    Eigen::Vector3d p(
+        data_->xpos[3 * body_id + 0],
+        data_->xpos[3 * body_id + 1],
+        data_->xpos[3 * body_id + 2]
+    );
+
+    // Extract orientations as quaternions
+    Eigen::Quaterniond q(
+        data_->xquat[4 * body_id + 0],  // w
+        data_->xquat[4 * body_id + 1],  // x
+        data_->xquat[4 * body_id + 2],  // y
+        data_->xquat[4 * body_id + 3]   // z
+    );
+
+    q.normalize();
+
+    // Fill the HTM
+    T.linear()      = q.toRotationMatrix();
+    T.translation() = p;
+
+    return T;
+}
+
+
+Eigen::Isometry3d RobotModel::get_frame_pose(const std::string& frame_name) const
+{
+    /* Function for obtaining a particular frame's pose as SE(3) HTM */
+
+    // Look up the frame (site) id from the frame name given by mujoco
+    int frame_id = mj_name2id(model_, mjOBJ_SITE, frame_name.c_str());
+
+    if (frame_id < 0)
+    {
+        throw std::runtime_error("Frame name not found: " + frame_name);
+    }
+
+    // Create the HTM SE(3)
+    Eigen::Isometry3d T = Eigen::Isometry3d::Identity();
+
+    // Extract the position (mujoco stores them as 1d flattened vectors)
+    Eigen::Vector3d p(
+        data_->site_xpos[3 * frame_id + 0],
+        data_->site_xpos[3 * frame_id + 1],
+        data_->site_xpos[3 * frame_id + 2]
+    );
+
+    // Extract the orientation (mujoco stores site rotations as 3x3 matrices)
+    Eigen::Matrix3d R;
+    R << data_->site_xmat[9 * frame_id + 0], data_->site_xmat[9 * frame_id + 1], data_->site_xmat[9 * frame_id + 2],
+         data_->site_xmat[9 * frame_id + 3], data_->site_xmat[9 * frame_id + 4], data_->site_xmat[9 * frame_id + 5],
+         data_->site_xmat[9 * frame_id + 6], data_->site_xmat[9 * frame_id + 7], data_->site_xmat[9 * frame_id + 8];
+
+    // Fill the HTM
+    T.linear()      = R;
+    T.translation() = p;
+
+    return T;
+}
