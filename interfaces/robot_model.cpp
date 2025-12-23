@@ -1,5 +1,7 @@
 // Libraries to load in
 #include "robot_model.hpp"
+#include <iostream>
+
 
 RobotModel::RobotModel(mjModel* model, mjData* data)
     : model_(model), data_(data)
@@ -68,34 +70,19 @@ void RobotModel::set_joint_velocities(const Eigen::VectorXd& q_vel)
 
 void RobotModel::forward_position()
 {
-    /*
-     * Computes all position-level quantities from the current qpos.
-     * Resolves the kinematic tree and updates world-frame positions
-     * and orientations of all bodies, joints, sites, and geoms.
-     * This is the minimum forward pass required before querying poses.
-     */
+    // Forward simulation of position terms
     mj_fwdPosition(model_, data_);
 }
 
 void RobotModel::forward_velocity()
 {
-    /*
-     * Computes all velocity-level quantities from the current qpos and qvel.
-     * Propagates spatial velocities through the kinematic tree and updates
-     * Jacobians and other velocity-dependent terms.
-     * Requires forward_position() to have been called.
-     */
+    // Forward simulation of joint velocity terms
     mj_fwdVelocity(model_, data_);
 }
 
 void RobotModel::forward_dynamics()
 {
-    /*
-     * Computes actuation and acceleration-level dynamics.
-     * Applies actuator forces, computes bias forces, accelerations,
-     * and resolves constraint forces.
-     * Requires forward_position() and forward_velocity() to have been called.
-     */
+    // Forward simulation of dynamic terms. 
     mj_fwdActuation(model_, data_);
     mj_fwdAcceleration(model_, data_);
 }
@@ -109,3 +96,53 @@ void RobotModel::forward()
     forward_dynamics();
 }
 
+std::vector<std::string> RobotModel::get_body_names() const
+{
+    std::vector<std::string> names; //declare the variable
+
+    for (int i = 0; i < model_->nbody; i++)
+    {
+        // hold the addresses of the names in the pointer varable called name
+        const char* name = mj_id2name(model_, mjOBJ_BODY, i); //mjOBJ_BODY comes from mujoco.h
+        if (name)
+        {
+            names.push_back(name); // appends the new element to the end of the vector
+        }
+    }
+
+    return names;
+}
+
+std::vector<std::string> RobotModel::get_frame_names() const
+{
+    std::vector<std::string> names; 
+
+    for (int i = 0; i < model_->nsite; i++)
+    {
+        const char* name = mj_id2name(model_, mjOBJ_SITE, i); 
+        if (name)
+        {
+            names.push_back(name); 
+        }
+    }
+
+    return names;
+}
+
+void print_bodies() const
+{
+    //  for each element in get_body_names, make me an unmodifiable alias then print it out
+    for (const auto& body_name : get_body_names())
+    {
+        std::cout << body_name << "\n";
+    }
+}
+
+void print_frames() const
+{
+    //  for each element in get_body_names, make me an unmodifiable alias then print it out
+    for (const auto& frame_name : get_frame_names())
+    {
+        std::cout << frame_name << "\n";
+    }
+}

@@ -3,6 +3,9 @@
 #include <mujoco/mujoco.h>
 #include <Eigen/Dense>
 #include <stdexcept>
+#include <string>
+#include <vector>
+#include <ostream>
 
 class RobotModel
 {
@@ -15,6 +18,12 @@ public:
 
     Eigen::VectorXd get_joint_positions() const;   // data->qpos
     Eigen::VectorXd get_joint_velocities() const;  // data->qvel
+    
+    // name extraction of bodies and sites with printing
+    std::vector<std::string> get_body_names() const;
+    std::vector<std::string> get_frame_names() const;
+    void print_bodies() const; // ostream as only outputting
+    void print_frames() const;
 
     // Set values for use later by controllers
     void set_joint_positions(const Eigen::VectorXd& q_pos);
@@ -27,6 +36,11 @@ public:
     void forward(); // complete forwards for kinematics and dynamics
 
 private:
+    // Core pointers to important mujoco variables
     mjModel* model_;
     mjData* data_;
+
+    // name extraction of bodies and sites with printing
+    std::vector<std::string> get_body_names() const;
+    std::vector<std::string> get_frame_names() const;
 };
