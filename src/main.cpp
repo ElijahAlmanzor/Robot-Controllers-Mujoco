@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include <iomanip>   
 
 #include "robot_model.hpp"
 
@@ -47,6 +48,7 @@ int main()
         sizeof(error)
     );
 
+    // Simple safety checks
     if (!model)
     {
         std::cerr << error << std::endl;
@@ -102,8 +104,11 @@ int main()
     std::cout << "Bodies:\n";
     robot.print_bodies(std::cout);
 
-    std::cout << "\nFrames (sites):\n";
-    robot.print_frames(std::cout);
+    // std::cout << "\nFrames (sites):\n";
+    // robot.print_frames(std::cout);
+
+
+    const std::string link8_name = "panda_link8";
 
     // ------------------------------------------------------------------
     // Main simulation loop (no control)
@@ -112,6 +117,21 @@ int main()
     {
         // Step physics
         mj_step(model, data);
+
+
+        // Step robot
+        robot.forward();
+
+        // Print out the displays
+        Eigen::Isometry3d T_W_link8  = robot.get_body_pose(link8_name);
+        Eigen::MatrixXd J_link8 = robot.get_jacobian(link8_name);
+
+        // Debugging - checking to see if the functions written actually work
+        // std::cout << std::fixed << std::setprecision(2);
+        // std::cout << "\n ---" << link8_name << " pose ---\n";
+        // std::cout << T_W_link8.matrix() << "\n";
+        // std::cout << "\n ---" << link8_name << " Jacobian ---\n";
+        // std::cout << J_link8 << "\n";
 
         // Get framebuffer size
         mjrRect viewport = {0, 0, 0, 0};
