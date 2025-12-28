@@ -31,6 +31,7 @@ target_link_libraries(interfaces PUBLIC
 # ------------------------------------------------------------------
 add_library(controllers
     controllers/PID/kinematic_pid.cpp
+    controllers/PID/PID.cpp
 )
 
 target_include_directories(controllers PUBLIC
