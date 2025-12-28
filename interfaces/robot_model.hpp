@@ -23,6 +23,8 @@ public:
     // Set values for use later by controllers
     void set_joint_positions(const Eigen::VectorXd& q_pos);
     void set_joint_velocities(const Eigen::VectorXd& q_vel);
+    void send_torque(const Eigen::VectorXd& tau);
+
 
     // Forward computations
     void forward_position();

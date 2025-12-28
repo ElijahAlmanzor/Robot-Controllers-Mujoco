@@ -51,6 +51,35 @@ void RobotModel::set_joint_positions(const Eigen::VectorXd& q_pos)
     }
 }
 
+void RobotModel::send_torque(const Eigen::VectorXd& tau)
+{
+    // Function for sending torque commands to the simulated robot
+
+    int nu = model_->nu;
+
+    // Safety checking
+    if (tau.size() > nu)
+    {
+        throw std::runtime_error(
+            "send_torque: torque vector tau is larger than the number of actuators"
+        );
+    }
+
+    // Zero all actuators first (important!)
+    for (int i = 0; i < nu; i++)
+    {
+        data_->ctrl[i] = 0.0;
+    }
+
+    // Write torques for the arm
+    for (int i = 0; i < tau.size(); i++)
+    {
+        data_->ctrl[i] = tau[i];
+    }
+
+}
+
+
 void RobotModel::set_joint_velocities(const Eigen::VectorXd& q_vel)
 {
     // Safety check: correct size
