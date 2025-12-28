@@ -1,55 +1,78 @@
 #pragma once
+
 #include <Eigen/Dense>
 #include <stdexcept>
-#include <string>
-#include <vector>
-#include <ostream>
+#include <cmath>
+#include <algorithm>
+
 
 
 class PID_Kinematic
 {
     public:
 
-        // Set the PID gains - later to do - call the PID objects from custom PID class
+        // Initialise controller dimensions (must be called once)
+        // Typically called after robot_model is created
+        void init(int num_joints);
+
+        // Set PID gains for high-level Cartesian position control
         void set_position_gains(float kp, float ki, float kd);
+
+        // Set PID gains for high-level Cartesian orientation control
         void set_orientation_gains(float kp, float ki, float kd);
+
+        // Set PID gains for low-level joint space control
         void set_joint_gains(float kp, float ki, float kd);
 
-        // Set the targets - pose, translation, orientation and desired joint angles
+        // Set target pose in Cartesian space (HTM)
         void set_target_pose(const Eigen::Isometry3d& pose);
+
+        // Set target position in Cartesian space
         void set_target_position(const Eigen::Vector3d& position);
+
+        // Set target orientation in Cartesian space
         void set_target_orientation(const Eigen::Quaterniond& orientation);
+
+        // Set target joint configuration for low-level controller
         void set_target_joint(const Eigen::VectorXd& joint);
 
+        // Compute Cartesian position error (ref - current)
+        void get_position_error(const Eigen::Vector3d& position_ref, const Eigen::Vector3d& position_cur);
 
+        // Compute Cartesian orientation error (stored as so(3) vector)
+        void get_orientation_error(const Eigen::Quaterniond& orientation_ref, const Eigen::Quaterniond& orientation_cur);
+
+        // Compute joint space error (ref - current)
+        void get_joint_error(const Eigen::VectorXd& joint_ref, const Eigen::VectorXd& joint_cur);
 
     private:
-        // PID gains for the cartesian control for translation
+
+        // Number of joints (set during init)
+        int nq = 0;
+
+        // PID gains for high-level Cartesian position control
         float hl_pos_Pgain = 0.0f;
         float hl_pos_Igain = 0.0f;
         float hl_pos_Dgain = 0.0f;
 
-        // PID gains for the cartesian control for orientation
+        // PID gains for high-level Cartesian orientation control
         float hl_ori_Pgain = 0.0f;
         float hl_ori_Igain = 0.0f;
         float hl_ori_Dgain = 0.0f;
-        
-        // PID gains for low-level torque control
+
+        // PID gains for low-level joint space torque control
         float ll_Pgain = 0.0f;
         float ll_Igain = 0.0f;
         float ll_Dgain = 0.0f;
 
-        // Declare the variables for setting the targets - pose, translation, and orientation and even joint desired angles
-        Eigen::Isometry3d target_pose = Eigen::Isometry3d::Identity();
-        Eigen::Vector3d target_position = Eigen::Vector3d::Zero();
+        // Target representations
+        Eigen::Isometry3d  target_pose        = Eigen::Isometry3d::Identity();
+        Eigen::Vector3d    target_position    = Eigen::Vector3d::Zero();
         Eigen::Quaterniond target_orientation = Eigen::Quaterniond::Identity();
-        Eigen::VectorXd target_joint;
+        Eigen::VectorXd    target_joint;
 
-
-        // Internal position, rotation and joint errors!
-
-
-
-        
-
+        // Internal error states
+        Eigen::Vector3d position_error    = Eigen::Vector3d::Zero();
+        Eigen::Vector3d orientation_error = Eigen::Vector3d::Zero();
+        Eigen::VectorXd joint_error;
 };

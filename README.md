@@ -27,7 +27,7 @@ Control methods will be added incrementally.
 
 The following controllers are planned, though not necessarily in this order:
 
-- Joint space PID kinematic control
+- Joint space PID kinematic control  - WIP
 - Joint space PID dynamic control
 - LQR based dynamic control
 - Model Predictive Control (MPC)
@@ -35,6 +35,7 @@ The following controllers are planned, though not necessarily in this order:
 - Cartesian impedance control
 - Stochastic impedance control
 - Support for different robotic manipulators and arms
+- Markdown documents for the control maths
 
 ---
 
