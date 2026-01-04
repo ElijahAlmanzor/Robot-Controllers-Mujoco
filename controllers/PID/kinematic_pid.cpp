@@ -7,7 +7,7 @@
 // 3. set joint_target - useful for initiating the joint position at the start - DONE
 // 4. convert set targets to position, orientation targets - DONE!
 // 5. Get translation, orientation, and joint error - DONE!
-// 5.b PID object translation, orientation and joint error - DONE 
+// 5.b PID object translation, orientation and joint error  - DONE!
 // 6. Forward PID simulation (high level - cartesian with orientation) - outputs qdes
 // 7. Forward PID low-level (desired angles to joint torques with its own PID) - outputs torque + grav comp
 
@@ -23,8 +23,18 @@ void PID_Kinematic::init(int num_joints)
 
     nq = num_joints;
 
-    target_joint.setZero(nq);
-    joint_error.setZero(nq);
+    target_joint.resize(nq);
+    joint_error.resize(nq);
+    q_des.resize(nq);
+    qdot_des.resize(nq);
+
+    target_joint.setZero();
+    joint_error.setZero();
+    q_des = target_joint;
+    qdot_des.setZero();
+
+    
+
 
     // orientation_error and position_error are fixed-size (3)
 }
@@ -150,5 +160,44 @@ void PID_Kinematic::get_joint_error(const Eigen::VectorXd& joint_ref, const Eige
     this->joint_error = joint_ref - joint_cur;
 }
 
+
+Eigen::Matrix<double, 6, 1> PID_Kinematic::compute_twist_des(const Eigen::Vector3d& v,
+                                 const Eigen::Vector3d& w)
+{
+    xdot_des.head<3>() = v;
+    xdot_des.tail<3>() = w;
+    return xdot_des;
+}
+
+
+
+// compute joint velocity
+Eigen::VectorXd PID_Kinematic::compute_joint_velocity_des(
+    const Eigen::Matrix<double, 6, 1>& xdot_des,
+    const Eigen::MatrixXd& J_pinv)
+{
+    if (J_pinv.cols() != 6 || J_pinv.rows() != nq)
+    {
+        throw std::runtime_error("compute_joint_velocity_des: Jacobian size mismatch");
+    }
+
+    qdot_des = J_pinv * xdot_des;
+    return qdot_des;
+}
+
+void PID_Kinematic::integrate_joint_des(double dt)
+{
+    if (dt <= 0.0)
+    {
+        throw std::runtime_error("integrate_joint_des: invalid dt");
+    }
+
+    if (qdot_des.size() != nq)
+    {
+        throw std::runtime_error("integrate_joint_des: qdot_des not initialised");
+    }
+
+    q_des += qdot_des * dt;
+}
 
 

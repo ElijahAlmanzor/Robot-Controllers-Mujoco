@@ -45,10 +45,29 @@ class PID_Kinematic
         // Compute joint space error (ref - current)
         void get_joint_error(const Eigen::VectorXd& joint_ref, const Eigen::VectorXd& joint_cur);
 
+        // stack the control outputs
+        Eigen::Matrix<double, 6, 1> compute_twist_des(const Eigen::Vector3d& v, const Eigen::Vector3d& w);
+
+        // compute the desired joint velocity
+        // Map desired Cartesian twist to desired joint velocity
+        Eigen::VectorXd compute_joint_velocity_des(const Eigen::Matrix<double, 6, 1>& xdot_des, const Eigen::MatrixXd& J_pinv);
+
+
+        // Integrate desired joint velocity to update desired joint position
+        void integrate_joint_des(double dt);
+
+
+        
     private:
 
         // Number of joints (set during init)
         int nq = 0;
+        Eigen::VectorXd q_des;       // desired joint position (state)
+        Eigen::VectorXd qdot_des;    // desired joint velocity (optional but useful)
+
+        // For combining the different position and orienation PID terms
+        Eigen::Matrix<double, 6, 1> xdot_des;
+
 
         // PID gains for high-level Cartesian position control
         float hl_pos_Pgain = 0.0f;
@@ -75,4 +94,5 @@ class PID_Kinematic
         Eigen::Vector3d position_error    = Eigen::Vector3d::Zero();
         Eigen::Vector3d orientation_error = Eigen::Vector3d::Zero();
         Eigen::VectorXd joint_error;
+        
 };
