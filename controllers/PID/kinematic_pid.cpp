@@ -6,8 +6,8 @@
 // 2. Set target (HTM) - DONE!
 // 3. set joint_target - useful for initiating the joint position at the start - DONE
 // 4. convert set targets to position, orientation targets - DONE!
-// 5. Get translation, orientation, and joint error
-// 5.b PID object translation, orientation and joint error
+// 5. Get translation, orientation, and joint error - DONE!
+// 5.b PID object translation, orientation and joint error - DONE 
 // 6. Forward PID simulation (high level - cartesian with orientation) - outputs qdes
 // 7. Forward PID low-level (desired angles to joint torques with its own PID) - outputs torque + grav comp
 
