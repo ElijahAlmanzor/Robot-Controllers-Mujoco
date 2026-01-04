@@ -37,13 +37,13 @@ class PID_Kinematic
         void set_target_joint(const Eigen::VectorXd& joint);
 
         // Compute Cartesian position error (ref - current)
-        void get_position_error(const Eigen::Vector3d& position_ref, const Eigen::Vector3d& position_cur);
+        Eigen::Vector3d get_position_error(const Eigen::Vector3d& position_ref, const Eigen::Vector3d& position_cur);
 
         // Compute Cartesian orientation error (stored as so(3) vector)
-        void get_orientation_error(const Eigen::Quaterniond& orientation_ref, const Eigen::Quaterniond& orientation_cur);
+        Eigen::Vector3d get_orientation_error(const Eigen::Quaterniond& orientation_ref, const Eigen::Quaterniond& orientation_cur);
 
         // Compute joint space error (ref - current)
-        void get_joint_error(const Eigen::VectorXd& joint_ref, const Eigen::VectorXd& joint_cur);
+        Eigen::VectorXd get_joint_error(const Eigen::VectorXd& joint_ref, const Eigen::VectorXd& joint_cur);
 
         // stack the control outputs
         Eigen::Matrix<double, 6, 1> compute_twist_des(const Eigen::Vector3d& v, const Eigen::Vector3d& w);
@@ -56,6 +56,8 @@ class PID_Kinematic
         // Integrate desired joint velocity to update desired joint position
         void integrate_joint_des(double dt);
 
+        // get q_des
+        Eigen::VectorXd get_q_des() const;
 
         
     private:

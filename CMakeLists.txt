@@ -34,13 +34,14 @@ add_library(controllers
     controllers/PID/PID.cpp
 )
 
+# IMPORTANT: expose controllers/ as an include root
+# so users include with:  #include "PID/kinematic_pid.hpp"
 target_include_directories(controllers PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/controllers
-    ${MUJOCO_DIR}/include
 )
 
 target_link_libraries(controllers PUBLIC
-    interfaces          # controllers depend on robot_model
+    interfaces
     Eigen3::Eigen
 )
 
@@ -52,8 +53,8 @@ add_executable(control_demos_app
 )
 
 target_link_libraries(control_demos_app PRIVATE
-    interfaces
     controllers
+    interfaces
     glfw
 )
 

@@ -2,16 +2,6 @@
 #include <iostream>
 
 
-// 1. Set PID Gains (low level and high level) - DONE!
-// 2. Set target (HTM) - DONE!
-// 3. set joint_target - useful for initiating the joint position at the start - DONE
-// 4. convert set targets to position, orientation targets - DONE!
-// 5. Get translation, orientation, and joint error - DONE!
-// 5.b PID object translation, orientation and joint error  - DONE!
-// 6. Forward PID simulation (high level - cartesian with orientation) - outputs qdes
-// 7. Forward PID low-level (desired angles to joint torques with its own PID) - outputs torque + grav comp
-
-
 // Initialise this controller
 
 void PID_Kinematic::init(int num_joints)
@@ -109,55 +99,31 @@ void PID_Kinematic::set_target_joint(const Eigen::VectorXd& joint)
 
 // GET ERRORS FOR FEEDBACK CONTROL
 
-void PID_Kinematic::get_position_error(const Eigen::Vector3d& position_ref, const Eigen::Vector3d& position_cur)
+Eigen::Vector3d PID_Kinematic::get_position_error(const Eigen::Vector3d& position_ref, const Eigen::Vector3d& position_cur)
 {
     this->position_error = position_ref - position_cur;
+    return position_error;
 }
 
 
-void PID_Kinematic::get_orientation_error(const Eigen::Quaterniond& orientation_ref, const Eigen::Quaterniond& orientation_cur)
+Eigen::Vector3d PID_Kinematic::get_orientation_error(const Eigen::Quaterniond& orientation_ref, const Eigen::Quaterniond& orientation_cur)
 {
-    // 1. compute relative rotation
-
     Eigen::Quaterniond q_error = orientation_ref * orientation_cur.conjugate();
-
-    // 2. ensure shortest rotation
-
-    if (q_error.w() < 0)
-    {
-       q_error = Eigen::Quaterniond(
-                -q_error.w(),
-                -q_error.x(),
-                -q_error.y(),
-                -q_error.z()
-            );
-    }    
-    
-    // 3. convert quaternion to axis-angle
+    if (q_error.w() < 0) q_error.coeffs() *= -1.0;
     Eigen::Vector3d v(q_error.x(), q_error.y(), q_error.z());
-    double w = q_error.w();
-
     double v_norm = v.norm();
-
-    if (v_norm < 1e-8)
-    {
-        // very small rotation
-        orientation_error.setZero();
-        return;
-    }
-
-    double angle = 2.0 * std::acos(w);
-    Eigen::Vector3d axis = v / v_norm;
-
-    // 4. form the 3D error vector
-    orientation_error = axis * angle;
-
+    if (v_norm < 1e-8) { orientation_error.setZero(); return orientation_error; }
+    double angle = 2.0 * std::acos(q_error.w());
+    orientation_error = (v / v_norm) * angle;
+    return orientation_error;
 }
 
 
-void PID_Kinematic::get_joint_error(const Eigen::VectorXd& joint_ref, const Eigen::VectorXd& joint_cur)
+
+Eigen::VectorXd PID_Kinematic::get_joint_error(const Eigen::VectorXd& joint_ref, const Eigen::VectorXd& joint_cur)
 {
     this->joint_error = joint_ref - joint_cur;
+    return joint_error;
 }
 
 
@@ -198,6 +164,12 @@ void PID_Kinematic::integrate_joint_des(double dt)
     }
 
     q_des += qdot_des * dt;
+}
+
+
+Eigen::VectorXd PID_Kinematic::get_q_des() const
+{
+    return q_des;
 }
 
 
