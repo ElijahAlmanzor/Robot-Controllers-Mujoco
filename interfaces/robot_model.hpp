@@ -16,9 +16,11 @@ public:
     // Get values from the robot model
     int get_num_positions() const;   // model_->nq
     int get_num_velocities() const;  // model_->nv
+    int get_num_actuators() const; // model->nu
 
     Eigen::VectorXd get_joint_positions() const;   // data_->qpos
     Eigen::VectorXd get_joint_velocities() const;  // data_->qvel
+    
 
     // Set values for use later by controllers
     void set_joint_positions(const Eigen::VectorXd& q_pos);
@@ -44,7 +46,8 @@ public:
     Eigen::Isometry3d get_body_pose(const std::string& body_name) const;
     Eigen::Isometry3d get_frame_pose(const std::string& frame_name) const;
     Eigen::MatrixXd get_jacobian(const std::string& name) const;
-
+    Eigen::MatrixXd pinv_jacobian(const Eigen::MatrixXd& jacobian) const;
+    
     // Dynamics
     Eigen::VectorXd compute_gravity() const;
     Eigen::VectorXd compute_coriolis() const;

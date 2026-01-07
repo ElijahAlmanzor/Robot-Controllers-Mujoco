@@ -23,11 +23,15 @@ Control methods will be added incrementally.
 
 ---
 
+## Implemented Controllers
+*See documents folder for markdown with theory!*
+- *Joint space PID kinematic control with gravity compensation*
+
+---
+
 ## Planned Work
 
 The following controllers are planned, though not necessarily in this order:
-
-- Joint space PID kinematic control  - WIP
 - Joint space PID dynamic control
 - LQR based dynamic control
 - Model Predictive Control (MPC)

@@ -16,6 +16,12 @@ add_library(interfaces
     interfaces/robot_model.cpp
 )
 
+
+add_library(config
+    config/franka_sim_setup.cpp
+)
+
+
 target_include_directories(interfaces PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/interfaces
     ${MUJOCO_DIR}/include
@@ -24,6 +30,10 @@ target_include_directories(interfaces PUBLIC
 target_link_libraries(interfaces PUBLIC
     ${MUJOCO_DIR}/lib/mujoco.lib
     Eigen3::Eigen
+)
+
+target_include_directories(config PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/config
 )
 
 # ------------------------------------------------------------------
@@ -45,6 +55,10 @@ target_link_libraries(controllers PUBLIC
     Eigen3::Eigen
 )
 
+target_link_libraries(config PUBLIC
+    Eigen3::Eigen
+)
+
 # ------------------------------------------------------------------
 # Executable
 # ------------------------------------------------------------------
@@ -54,6 +68,7 @@ add_executable(control_demos_app
 
 target_link_libraries(control_demos_app PRIVATE
     controllers
+    config
     interfaces
     glfw
 )

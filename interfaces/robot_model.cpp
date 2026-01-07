@@ -20,6 +20,12 @@ int RobotModel::get_num_velocities() const
     return model_->nv;
 }
 
+int RobotModel::get_num_actuators() const
+{
+    // returns number of joint actuators from mujoco loaded model
+    return model_->nu;
+}
+
 Eigen::VectorXd RobotModel::get_joint_positions() const
 {
     // Eigen::Map is used to make C array of joint positions into Eigen readable format
@@ -300,6 +306,17 @@ Eigen::MatrixXd RobotModel::get_jacobian(const std::string& name) const
     return J;
 }
 
+Eigen::MatrixXd RobotModel::pinv_jacobian(
+    const Eigen::MatrixXd& jacobian
+) const
+{
+    return jacobian.transpose()
+        * (jacobian * jacobian.transpose()
+           + 1e-6 * Eigen::MatrixXd::Identity(6, 6)).inverse();
+}
+
+
+            
 
 // Functions for extracting dynamic terms
 
