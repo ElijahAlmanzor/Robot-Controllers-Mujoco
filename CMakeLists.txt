@@ -14,7 +14,9 @@ find_package(Eigen3 CONFIG REQUIRED)
 # ------------------------------------------------------------------
 add_library(interfaces
     interfaces/robot_model.cpp
+    interfaces/mj_sim.cpp
 )
+
 
 
 add_library(config
@@ -24,12 +26,15 @@ add_library(config
 
 target_include_directories(interfaces PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/interfaces
+    ${CMAKE_CURRENT_SOURCE_DIR}/controllers
+    ${CMAKE_CURRENT_SOURCE_DIR}/config
     ${MUJOCO_DIR}/include
 )
 
 target_link_libraries(interfaces PUBLIC
     ${MUJOCO_DIR}/lib/mujoco.lib
     Eigen3::Eigen
+    glfw
 )
 
 target_include_directories(config PUBLIC
@@ -51,8 +56,13 @@ target_include_directories(controllers PUBLIC
 )
 
 target_link_libraries(controllers PUBLIC
-    interfaces
     Eigen3::Eigen
+)
+
+# interfaces depends on controller + config implementations
+target_link_libraries(interfaces PUBLIC
+    controllers
+    config
 )
 
 target_link_libraries(config PUBLIC

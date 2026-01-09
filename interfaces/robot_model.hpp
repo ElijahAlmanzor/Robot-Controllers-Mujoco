@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <optional>
 #include <ostream>
 
 class RobotModel
@@ -37,6 +38,7 @@ public:
     // Name extraction of bodies and frames (sites)
     std::vector<std::string> get_body_names() const;
     std::vector<std::string> get_frame_names() const;
+    std::optional<int> find_free_joint_id() const;
 
     // Printing helpers
     void print_bodies(std::ostream& os) const;

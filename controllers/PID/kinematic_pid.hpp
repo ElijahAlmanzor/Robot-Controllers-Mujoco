@@ -5,6 +5,7 @@
 #include <cmath>
 #include <algorithm>
 
+#include "PID.hpp"
 
 
 class PID_Kinematic
@@ -59,6 +60,19 @@ class PID_Kinematic
         // get q_des
         Eigen::VectorXd get_q_des() const;
 
+        // Configure internal PID helpers
+        void set_joint_integral_limit(double limit);
+
+        // Compute one control step (arm-only inputs)
+        Eigen::VectorXd compute(
+            double dt,
+            const Eigen::VectorXd& q_arm,
+            const Eigen::VectorXd& qdot_arm,
+            const Eigen::Isometry3d& T_W_ee,
+            const Eigen::MatrixXd& J_arm,
+            const Eigen::VectorXd& g_arm
+        );
+
         
     private:
 
@@ -96,5 +110,10 @@ class PID_Kinematic
         Eigen::Vector3d position_error    = Eigen::Vector3d::Zero();
         Eigen::Vector3d orientation_error = Eigen::Vector3d::Zero();
         Eigen::VectorXd joint_error;
+
+        // Internal PID helpers (arm-only, controller-owned)
+        PID pid_pos_;
+        PID pid_ori_;
+        PID pid_joint_;
         
 };

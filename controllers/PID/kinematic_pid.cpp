@@ -23,7 +23,9 @@ void PID_Kinematic::init(int num_joints)
     q_des = target_joint;
     qdot_des.setZero();
 
-    
+    pid_pos_.init(3);
+    pid_ori_.init(3);
+    pid_joint_.init(nq);
 
 
     // orientation_error and position_error are fixed-size (3)
@@ -38,6 +40,8 @@ void PID_Kinematic::set_position_gains(float kp, float ki, float kd)
     hl_pos_Pgain = kp;
     hl_pos_Igain = ki;
     hl_pos_Dgain = kd;
+
+    pid_pos_.set_gains(kp, ki, kd);
 }
 
 
@@ -47,6 +51,8 @@ void PID_Kinematic::set_orientation_gains(float kp, float ki, float kd)
     hl_ori_Pgain = kp;
     hl_ori_Igain = ki;
     hl_ori_Dgain = kd;
+
+    pid_ori_.set_gains(kp, ki, kd);
 }
 
 void PID_Kinematic::set_joint_gains(float kp, float ki, float kd)
@@ -55,6 +61,13 @@ void PID_Kinematic::set_joint_gains(float kp, float ki, float kd)
     ll_Pgain = kp;
     ll_Igain = ki;
     ll_Dgain = kd;
+
+    pid_joint_.set_gains(kp, ki, kd);
+}
+
+void PID_Kinematic::set_joint_integral_limit(double limit)
+{
+    pid_joint_.set_integral_limit(limit);
 }
 
 // SET TARGETS FUNCTIONS
@@ -95,6 +108,8 @@ void PID_Kinematic::set_target_joint(const Eigen::VectorXd& joint)
     }
 
     this->target_joint = joint;
+    this->q_des = joint;
+    this->qdot_des.setZero();
 }
 
 // GET ERRORS FOR FEEDBACK CONTROL
@@ -170,6 +185,62 @@ void PID_Kinematic::integrate_joint_des(double dt)
 Eigen::VectorXd PID_Kinematic::get_q_des() const
 {
     return q_des;
+}
+
+Eigen::VectorXd PID_Kinematic::compute(
+    double dt,
+    const Eigen::VectorXd& q_arm,
+    const Eigen::VectorXd& qdot_arm,
+    const Eigen::Isometry3d& T_W_ee,
+    const Eigen::MatrixXd& J_arm,
+    const Eigen::VectorXd& g_arm
+)
+{
+    (void)qdot_arm;
+
+    if (dt <= 0.0)
+    {
+        throw std::runtime_error("PID_Kinematic::compute: invalid dt");
+    }
+
+    if (q_arm.size() != nq || g_arm.size() != nq)
+    {
+        throw std::runtime_error("PID_Kinematic::compute: size mismatch");
+    }
+
+    if (J_arm.rows() != 6 || J_arm.cols() != nq)
+    {
+        throw std::runtime_error("PID_Kinematic::compute: Jacobian size mismatch");
+    }
+
+    // Task-space errors (ref - current)
+    Eigen::Vector3d pos_err =
+        get_position_error(target_position, T_W_ee.translation());
+
+    Eigen::Vector3d ori_err =
+        get_orientation_error(
+            target_orientation,
+            Eigen::Quaterniond(T_W_ee.linear())
+        );
+
+    // Task-space PID -> commanded twist
+    Eigen::Vector3d v_cmd = pid_pos_.all_terms(pos_err, dt);
+    Eigen::Vector3d w_cmd = pid_ori_.all_terms(ori_err, dt);
+    Eigen::Matrix<double, 6, 1> xdot_des = compute_twist_des(v_cmd, w_cmd);
+
+    // Jacobian pseudoinverse (nq x 6)
+    Eigen::MatrixXd J_pinv =
+        J_arm.transpose()
+        * (J_arm * J_arm.transpose()
+           + 1e-6 * Eigen::MatrixXd::Identity(6, 6)).inverse();
+
+    // Map to joint space and integrate desired state
+    compute_joint_velocity_des(xdot_des, J_pinv);
+    integrate_joint_des(dt);
+
+    // Joint-space PID -> torque (gravity compensated)
+    Eigen::VectorXd e_q = get_joint_error(get_q_des(), q_arm);
+    return pid_joint_.all_terms(e_q, dt) + g_arm;
 }
 
 

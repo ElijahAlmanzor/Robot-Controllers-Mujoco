@@ -163,6 +163,17 @@ std::vector<std::string> RobotModel::get_frame_names() const
     return names;
 }
 
+std::optional<int> RobotModel::find_free_joint_id() const
+{
+    for (int j = 0; j < model_->njnt; ++j)
+    {
+        if (model_->jnt_type[j] == mjJNT_FREE)
+        {
+            return j;
+        }
+    }
+    return std::nullopt;
+}
 void RobotModel::print_bodies(std::ostream& os) const
 {
     for (const auto& body_name : get_body_names())
