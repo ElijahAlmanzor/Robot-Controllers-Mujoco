@@ -216,6 +216,49 @@ MJSim::~MJSim()
 }
 
 
+
+double MJSim::get_dt() const
+{
+    return model_->opt.timestep;
+}
+
+int MJSim::get_camera_target_body_id() const
+{
+    if (!model_)
+    {
+        throw std::runtime_error("MuJoCo model is not initialised.");
+    }
+    return mj_name2id(model_, mjOBJ_BODY, "panda_link0");
+}
+
+void MJSim::update_camera_lookat(int camera_target_body_id)
+{
+    if (!camera_ready_ || camera_target_body_id < 0)
+    {
+        return;
+    }
+
+    const mjtNum* base_pos = data_->xpos + 3 * camera_target_body_id;
+    camera_.lookat[0] = base_pos[0];
+    camera_.lookat[1] = base_pos[1];
+    camera_.lookat[2] = base_pos[2];
+}
+
+void MJSim::render_frame()
+{
+    mjrRect viewport = {0, 0, 0, 0};
+    glfwGetFramebufferSize(window_, &viewport.width, &viewport.height);
+
+    mjv_updateScene(
+        model_, data_, &options_, nullptr,
+        &camera_, mjCAT_ALL, &scene_
+    );
+    mjr_render(viewport, &scene_, &context_);
+
+    glfwSwapBuffers(window_);
+    glfwPollEvents();
+}
+
 void MJSim::init_control()
 {
     //values taken from franka_sim_setup.hpp
@@ -230,63 +273,30 @@ void MJSim::init_control()
     kin_pid_.set_target_joint(Q_ARM_INIT);
 }
 
-/* LAST DO STEPS BEFORE I BUILD OTHGER CONTROLLERS
-
-1. Clean up control_loop_run with more abstractions
-2. Add a simple switch case to choose controllers for scalability! 
-
-*/
 void MJSim::control_loop_run()
 {
+    /* Main control loop called by the main.cpp
+    
+    To do list:
+    1. Add a functionality that allows different controllers to be chosen upon start-up!
+
+    */
+
+    // Initialise robot_model containing interface functions
     if (!robot_)
     {
-        robot_ = std::make_unique<RobotModel>(model_, data_);
+        robot_ = std::make_unique<RobotModel>(model_, data_, FRANKA_ARM_JOINT_NAMES);
     }
 
-    // Precompute arm indexing (MuJoCo model-dependent; controller-independent)
-    std::vector<int> arm_qpos_idx;
-    std::vector<int> arm_qvel_idx;
-    arm_qpos_idx.reserve(ARM_DOF);
-    arm_qvel_idx.reserve(ARM_DOF);
-
-    for (const auto& jname : FRANKA_ARM_JOINT_NAMES)
-    {
-        int jid = mj_name2id(model_, mjOBJ_JOINT, jname.c_str());
-        if (jid < 0)
-        {
-            throw std::runtime_error("Joint not found: " + jname);
-        }
-
-        arm_qpos_idx.push_back(model_->jnt_qposadr[jid]);
-        arm_qvel_idx.push_back(model_->jnt_dofadr[jid]);
-    }
-
-    const int camera_target_body_id =
-        mj_name2id(model_, mjOBJ_BODY, "panda_link0");
+    const int camera_target_body_id = get_camera_target_body_id();
 
     // Initial robot state (simulation setup; not controller setup)
-    const int nq = robot_->get_num_positions();
     const int nv = robot_->get_num_velocities();
-
-    Eigen::VectorXd q0 = Eigen::VectorXd::Zero(nq);
-
-    if (std::optional<int> free_joint_id = robot_->find_free_joint_id();
-        free_joint_id.has_value())
-    {
-        int adr = model_->jnt_qposadr[free_joint_id.value()];
-        if (adr + 3 < nq)
-        {
-            q0[adr + 3] = 1.0;  // quaternion w = 1
-        }
-    }
-
-    for (int i = 0; i < ARM_DOF; ++i)
-    {
-        q0[arm_qpos_idx[i]] = Q_ARM_INIT[i];
-    }
+    const Eigen::VectorXd q0 = robot_->initialise_joint_configuration(Q_ARM_INIT); 
+    Eigen::VectorXd q0_dot = Eigen::VectorXd::Zero(nv);
 
     robot_->set_joint_positions(q0);
-    robot_->set_joint_velocities(Eigen::VectorXd::Zero(nv));
+    robot_->set_joint_velocities(q0_dot);
     robot_->forward();
 
     while (!glfwWindowShouldClose(window_))
@@ -294,65 +304,26 @@ void MJSim::control_loop_run()
         mj_step(model_, data_);
         robot_->forward();
 
-        const double dt = model_->opt.timestep;
+        // Get simulation time step
+        const double dt = this->get_dt();
 
-        // Full robot state
-        const Eigen::VectorXd q_full = robot_->get_joint_positions();
-        const Eigen::VectorXd qdot_full = robot_->get_joint_velocities();
-
-        // Slice arm state (arm-only, controller input)
-        Eigen::VectorXd q_arm(ARM_DOF);
-        Eigen::VectorXd qdot_arm(ARM_DOF);
-        for (int i = 0; i < ARM_DOF; ++i)
-        {
-            q_arm[i] = q_full[arm_qpos_idx[i]];
-            qdot_arm[i] = qdot_full[arm_qvel_idx[i]];
-        }
-
+        // Arm state
+        const Eigen::VectorXd q_arm = robot_->get_arm_joint_positions();
+        const Eigen::VectorXd qdot_arm = robot_->get_arm_joint_velocities();
         const Eigen::Isometry3d T_W_ee = robot_->get_body_pose(EE_NAME);
+        const Eigen::MatrixXd J_arm = robot_->get_arm_jacobian(EE_NAME);
 
-        // Slice Jacobian columns to arm DOFs
-        const Eigen::MatrixXd J_full = robot_->get_jacobian(EE_NAME);
-        Eigen::MatrixXd J_arm(6, ARM_DOF);
-        for (int i = 0; i < ARM_DOF; ++i)
-        {
-            J_arm.col(i) = J_full.col(arm_qvel_idx[i]);
-        }
 
-        // Slice gravity to arm DOFs
-        const Eigen::VectorXd g_full = robot_->compute_gravity();
-        Eigen::VectorXd g_arm(ARM_DOF);
-        for (int i = 0; i < ARM_DOF; ++i)
-        {
-            g_arm[i] = g_full[arm_qvel_idx[i]];
-        }
+        // Get Arm dynamics - later to return inertance and coriolis terms
+        const Eigen::VectorXd g_arm = robot_->compute_arm_gravity();
 
-        // One controller call per step (arm-only in/out)
-        const Eigen::VectorXd tau_arm =
-            kin_pid_.compute(dt, q_arm, qdot_arm, T_W_ee, J_arm, g_arm);
+        // Controller call - once per timestep
+        const Eigen::VectorXd tau_arm = kin_pid_.compute(dt, q_arm, qdot_arm, T_W_ee, J_arm, g_arm);
 
         robot_->send_torque(tau_arm);
 
-        if (camera_target_body_id >= 0)
-        {
-            const mjtNum* base_pos = data_->xpos + 3 * camera_target_body_id;
-            camera_.lookat[0] = base_pos[0];
-            camera_.lookat[1] = base_pos[1];
-            camera_.lookat[2] = base_pos[2];
-        }
-
-        // Render
-        mjrRect viewport = {0, 0, 0, 0};
-        glfwGetFramebufferSize(window_, &viewport.width, &viewport.height);
-
-        mjv_updateScene(
-            model_, data_, &options_, nullptr,
-            &camera_, mjCAT_ALL, &scene_
-        );
-        mjr_render(viewport, &scene_, &context_);
-
-        glfwSwapBuffers(window_);
-        glfwPollEvents();
+        update_camera_lookat(camera_target_body_id);
+        render_frame();
 
         ++iter_;
     }

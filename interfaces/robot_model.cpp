@@ -8,6 +8,16 @@ RobotModel::RobotModel(mjModel* model, mjData* data)
 {
 }
 
+RobotModel::RobotModel(
+    mjModel* model,
+    mjData* data,
+    const std::vector<std::string>& arm_joint_names
+)
+    : RobotModel(model, data)
+{
+    cache_arm_joint_indices(arm_joint_names);
+}
+
 int RobotModel::get_num_positions() const
 {
     // returns number of joint positions from mujoco loaded model
@@ -28,17 +38,76 @@ int RobotModel::get_num_actuators() const
 
 Eigen::VectorXd RobotModel::get_joint_positions() const
 {
-    // Eigen::Map is used to make C array of joint positions into Eigen readable format
-    // VectorXd is used for variable sized robot number of configurations
     return Eigen::Map<const Eigen::VectorXd>(data_->qpos, model_->nq);
 }
 
+
 Eigen::VectorXd RobotModel::get_joint_velocities() const
 {
-    // Eigen::Map is used to make C array of joint positions into Eigen readable format
-    // VectorXd is used for variable sized robot number of configurations
     return Eigen::Map<const Eigen::VectorXd>(data_->qvel, model_->nv);
 }
+
+
+void RobotModel::cache_arm_joint_indices(const std::vector<std::string>& joint_names)
+{
+    arm_qpos_idx_.clear();
+    arm_qvel_idx_.clear();
+    arm_qpos_idx_.reserve(joint_names.size());
+    arm_qvel_idx_.reserve(joint_names.size());
+
+    for (const auto& jname : joint_names)
+    {
+        const int jid = mj_name2id(model_, mjOBJ_JOINT, jname.c_str());
+        if (jid < 0)
+        {
+            throw std::runtime_error("Joint not found: " + jname);
+        }
+
+        arm_qpos_idx_.push_back(model_->jnt_qposadr[jid]);
+        arm_qvel_idx_.push_back(model_->jnt_dofadr[jid]);
+    }
+}
+
+const std::vector<int>& RobotModel::get_arm_qpos_indices() const
+{
+    return arm_qpos_idx_;
+}
+
+const std::vector<int>& RobotModel::get_arm_qvel_indices() const
+{
+    return arm_qvel_idx_;
+}
+
+Eigen::VectorXd RobotModel::get_arm_joint_positions() const
+{
+    if (arm_qpos_idx_.empty())
+    {
+        throw std::runtime_error("Arm joint indices not cached. Call cache_arm_joint_indices() first.");
+    }
+
+    Eigen::VectorXd q_arm(static_cast<int>(arm_qpos_idx_.size()));
+    for (size_t i = 0; i < arm_qpos_idx_.size(); ++i)
+    {
+        q_arm[static_cast<int>(i)] = data_->qpos[arm_qpos_idx_[i]];
+    }
+    return q_arm;
+}
+
+Eigen::VectorXd RobotModel::get_arm_joint_velocities() const
+{
+    if (arm_qvel_idx_.empty())
+    {
+        throw std::runtime_error("Arm joint indices not cached. Call cache_arm_joint_indices() first.");
+    }
+
+    Eigen::VectorXd qdot_arm(static_cast<int>(arm_qvel_idx_.size()));
+    for (size_t i = 0; i < arm_qvel_idx_.size(); ++i)
+    {
+        qdot_arm[static_cast<int>(i)] = data_->qvel[arm_qvel_idx_[i]];
+    }
+    return qdot_arm;
+}
+
 
 void RobotModel::set_joint_positions(const Eigen::VectorXd& q_pos)
 {
@@ -317,6 +386,29 @@ Eigen::MatrixXd RobotModel::get_jacobian(const std::string& name) const
     return J;
 }
 
+Eigen::MatrixXd RobotModel::get_arm_jacobian(const std::string& name) const
+{
+    if (arm_qvel_idx_.empty())
+    {
+        throw std::runtime_error("Arm joint indices not cached. Call cache_arm_joint_indices() first.");
+    }
+
+    const Eigen::MatrixXd J_full = get_jacobian(name);
+    Eigen::MatrixXd J_arm(6, static_cast<int>(arm_qvel_idx_.size()));
+
+    for (size_t i = 0; i < arm_qvel_idx_.size(); ++i)
+    {
+        const int col = arm_qvel_idx_[i];
+        if (col < 0 || col >= J_full.cols())
+        {
+            throw std::runtime_error("Arm velocity index out of range while slicing Jacobian.");
+        }
+        J_arm.col(static_cast<int>(i)) = J_full.col(col);
+    }
+
+    return J_arm;
+}
+
 Eigen::MatrixXd RobotModel::pinv_jacobian(
     const Eigen::MatrixXd& jacobian
 ) const
@@ -366,6 +458,74 @@ Eigen::VectorXd RobotModel::compute_gravity() const
 
     return g;
 }
+
+Eigen::VectorXd RobotModel::compute_arm_gravity() const
+{
+    if (arm_qvel_idx_.empty())
+    {
+        throw std::runtime_error("Arm joint indices not cached. Call cache_arm_joint_indices() first.");
+    }
+
+    const Eigen::VectorXd g_full = compute_gravity();
+    Eigen::VectorXd g_arm(static_cast<int>(arm_qvel_idx_.size()));
+
+    for (size_t i = 0; i < arm_qvel_idx_.size(); ++i)
+    {
+        const int idx = arm_qvel_idx_[i];
+        if (idx < 0 || idx >= g_full.size())
+        {
+            throw std::runtime_error("Arm velocity index out of range while slicing gravity.");
+        }
+        g_arm[static_cast<int>(i)] = g_full[idx];
+    }
+
+    return g_arm;
+}
+
+Eigen::VectorXd RobotModel::initialise_joint_configuration(const Eigen::VectorXd& q_arm_init) const
+{
+    /*
+        Why this exists:
+        Controllers operate on arm-only joint vectors, but MuJoCo expects a full qpos (size nq).
+        If the model has a free joint, qpos contains a base quaternion; leaving it all-zeros is
+        an invalid orientation, so we set w=1.0 (identity quaternion) before inserting the arm
+        joint values into the correct qpos slots.
+    */
+    if (arm_qpos_idx_.empty())
+    {
+        throw std::runtime_error("Arm joint indices not cached. Call cache_arm_joint_indices() first.");
+    }
+    if (q_arm_init.size() != static_cast<int>(arm_qpos_idx_.size()))
+    {
+        throw std::runtime_error("initialise_joint_configuration: arm init size mismatch.");
+    }
+
+    const int nq = model_->nq;
+    Eigen::VectorXd q0 = Eigen::VectorXd::Zero(nq);
+
+    if (std::optional<int> free_joint_id = find_free_joint_id();
+        free_joint_id.has_value())
+    {
+        const int adr = model_->jnt_qposadr[free_joint_id.value()];
+        if (adr + 3 < nq)
+        {
+            q0[adr + 3] = 1.0;  // quaternion w = 1
+        }
+    }
+
+    for (size_t i = 0; i < arm_qpos_idx_.size(); ++i)
+    {
+        const int idx = arm_qpos_idx_[i];
+        if (idx < 0 || idx >= nq)
+        {
+            throw std::runtime_error("initialise_joint_configuration: arm position index out of range.");
+        }
+        q0[idx] = q_arm_init[static_cast<int>(i)];
+    }
+
+    return q0;
+}
+
 
 
 Eigen::VectorXd RobotModel::compute_coriolis() const

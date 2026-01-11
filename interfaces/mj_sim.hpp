@@ -26,7 +26,12 @@ private:
     void init_glfw();
     void init_mujoco(int argc, char** argv);
     void init_rendering();
-    
+
+    // camera + rendering
+    int get_camera_target_body_id() const;
+    void update_camera_lookat(int camera_target_body_id);
+    void render_frame();
+     
 
     // GLFW callbacks
     static void mouse_button_cb(GLFWwindow* window, int button, int action, int mods);
@@ -55,6 +60,8 @@ private:
 
     // bookkeeping
     int iter_ = 0;
+    double get_dt() const;
+
 
     static constexpr double SCROLL_ZOOM_SCALE = 0.05;
 
