@@ -32,7 +32,7 @@ Control methods will be added incrementally.
 ## Planned Work
 
 The following controllers are planned, though not necessarily in this order:
-- Joint space PID dynamic control
+- Joint space PID inverse dynamic control (WIP - needs derivative of Jacobian)
 - LQR based dynamic control
 - Model Predictive Control (MPC)
 - Virtual Model Control
